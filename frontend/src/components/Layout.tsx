@@ -1,5 +1,6 @@
-import { NavLink, Outlet, Navigate } from 'react-router-dom';
+import { NavLink, Outlet, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import { btnPrimary } from './ui';
 
 type NavItem =
   | { to: string; label: string; roles: readonly string[] }
@@ -27,6 +28,8 @@ const NAV: NavItem[] = [
 
 export default function Layout() {
   const { user, tenants, tenant, selectTenant, logout, loading } = useAuth();
+  const location = useLocation();
+  const nav = useNavigate();
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center bg-slate-100 text-slate-500">Cargando sesión…</div>;
@@ -104,12 +107,35 @@ export default function Layout() {
           </button>
         </header>
         <main className="flex-1 p-6 overflow-y-auto">
-          {!tenant ? (
+          {/* Las rutas de administración no dependen de la empresa seleccionada */}
+          {!tenant && !(user.role === 'ADMIN' && location.pathname.startsWith('/admin')) ? (
             <div className="max-w-lg mx-auto mt-20 bg-white border border-slate-200 rounded-2xl p-8 text-center shadow-sm">
-              <h2 className="text-lg font-bold">Seleccione una empresa</h2>
-              <p className="text-sm text-slate-500 mt-2">
-                Elija una empresa en el selector superior para comenzar a trabajar.
-              </p>
+              {tenants.length === 0 ? (
+                <>
+                  <h2 className="text-lg font-bold">Aún no hay empresas registradas</h2>
+                  {user.role === 'CONSULTA' ? (
+                    <p className="text-sm text-slate-500 mt-2">
+                      Solicite al administrador que le asigne acceso a una empresa.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-slate-500 mt-2">
+                        Cree la primera empresa para comenzar a trabajar.
+                      </p>
+                      <button className={btnPrimary + ' mt-4'} onClick={() => nav('/onboarding')}>
+                        Crear primera empresa
+                      </button>
+                    </>
+                  )}
+                </>
+              ) : (
+                <>
+                  <h2 className="text-lg font-bold">Seleccione una empresa</h2>
+                  <p className="text-sm text-slate-500 mt-2">
+                    Elija una empresa en el selector superior para comenzar a trabajar.
+                  </p>
+                </>
+              )}
             </div>
           ) : (
             <Outlet />

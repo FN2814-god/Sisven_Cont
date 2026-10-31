@@ -19,8 +19,9 @@ export default function LoginPage() {
     setBusy(true);
     setError(null);
     try {
-      await login(email, password);
-      nav('/', { replace: true });
+      const { user: u, tenants } = await login(email, password);
+      // Sin empresas y con permiso para crear → directo al asistente inicial
+      nav(tenants.length === 0 && u.role !== 'CONSULTA' ? '/onboarding' : '/', { replace: true });
     } catch (err) {
       setError(apiError(err));
     } finally {

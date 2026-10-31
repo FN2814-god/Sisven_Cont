@@ -26,7 +26,7 @@ interface AuthState {
   tenants: Tenant[];
   tenant: Tenant | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
+  login: (email: string, password: string) => Promise<{ user: SessionUser; tenants: Tenant[] }>;
   logout: () => void;
   selectTenant: (tenantId: string) => void;
   refreshMe: () => Promise<void>;
@@ -68,6 +68,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.setItem('sisven_token', data.access_token);
     setUser(data.user);
     setTenants(data.tenants ?? []);
+    return { user: data.user, tenants: data.tenants ?? [] };
   }, []);
 
   const logout = useCallback(() => {
