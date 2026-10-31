@@ -1,0 +1,23 @@
+# Dependencias
+node_modules/
+
+# Build output
+dist/
+backend/dist/
+frontend/dist/
+
+# Entorno y secretos
+.env
+**/.env
+!**/.env.example
+
+# Bases de datos y datos locales
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+backend/data/
+
+# Logs / SO
+*.log
+.DS_Store
