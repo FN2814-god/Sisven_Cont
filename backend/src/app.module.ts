@@ -10,6 +10,7 @@ import { AuditInterceptor } from './common/audit.interceptor';
 import { UserTenant } from './entities/user.entity';
 import { AuditLog } from './entities/audit.entity';
 import { SeedService } from './database/seed.service';
+import { HealthController } from './common/health.controller';
 import { User } from './entities/user.entity';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
@@ -40,6 +41,7 @@ import { StatsModule } from './modules/stats/stats.module';
     BanksModule,
     StatsModule,
   ],
+  controllers: [HealthController],
   providers: [
     SeedService,
     { provide: APP_GUARD, useClass: JwtAuthGuard },

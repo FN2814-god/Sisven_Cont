@@ -63,7 +63,10 @@ Si cambiaste el `.env`, reinicia: `pm2 restart sisven`.
 ```bash
 pm2 logs sisven        # debe mostrar "Sisven Cont API ejecutándose..."
 curl localhost:3000/   # debe devolver HTML (la página de login)
+./scripts/verify-deploy.sh   # verificación automática completa (no destructiva)
 ```
+
+👉 **Checklist completa de verificación**: [`VERIFICACION.md`](VERIFICACION.md) — incluye la prueba E2E de 38 checks en instancia desechable y el checklist de seguridad.
 
 ## 6. nginx + Certbot (HTTPS)
 
@@ -103,7 +106,9 @@ El puerto 3000 queda cerrado al exterior; solo nginx accede a él localmente.
    - Rol `CONSULTA`: solo lectura (recomendado si solo van a revisar).
 4. Comparte la URL y las credenciales de cada usuario.
 
-> 🚫 **NO ejecutes** `scripts/seed-demo.mjs` ni `scripts/smoke-test.sh` — cargan datos ficticios. El despliegue debe quedar virgen.
+> � **No hay registro público**: nadie puede crearse una cuenta desde internet — solo el admin crea usuarios. Es a propósito, por seguridad.
+
+> �🚫 **NO ejecutes** `scripts/seed-demo.mjs` ni `scripts/smoke-test.sh` — cargan datos ficticios. El despliegue debe quedar virgen.
 
 ## 9. Operación
 

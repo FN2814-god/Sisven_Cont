@@ -66,6 +66,7 @@ npm run dev                      # levanta backend (3000) y frontend (5173) a la
 El backend sirve la API y el frontend compilado en un solo proceso (puerto 3000). Para montarlo en un VPS con dominio y HTTPS (nginx + Certbot + PM2), sigue la guía:
 
 ➡️ [`docs/DEPLOY.md`](docs/DEPLOY.md) — incluye `scripts/setup-vps.sh` (bootstrap automático para Ubuntu).
+✅ [`docs/VERIFICACION.md`](docs/VERIFICACION.md) — checklist de verificación post-despliegue + `scripts/verify-deploy.sh`.
 
 ## Funcionalidades
 
