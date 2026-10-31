@@ -28,7 +28,7 @@ import { StatsModule } from './modules/stats/stats.module';
     TypeOrmModule.forFeature([User, UserTenant, AuditLog]),
     ServeStaticModule.forRoot({
       rootPath: join(__dirname, '..', '..', 'frontend', 'dist'),
-      exclude: ['/api*'],
+      exclude: ['/api/{*splat}'],
     }),
     AuthModule,
     UsersModule,

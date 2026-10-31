@@ -1,5 +1,5 @@
 import { DataSourceOptions } from 'typeorm';
-import { join } from 'path';
+import { join, isAbsolute, dirname } from 'path';
 import { mkdirSync } from 'fs';
 
 /**
@@ -32,11 +32,16 @@ export function buildDataSourceOptions(): DataSourceOptions {
         };
   }
 
+  // Rutas relativas se resuelven contra la raíz del paquete backend
+  // (__dirname es src/config en dev y dist/config en build), para que
+  // la ubicación de la DB no dependa del directorio desde el que se arranque.
+  const backendRoot = join(__dirname, '..', '..');
   const file = process.env.SQLITE_FILE || './data/sisven.db';
-  mkdirSync(join(process.cwd(), file, '..'), { recursive: true });
+  const database = isAbsolute(file) ? file : join(backendRoot, file);
+  mkdirSync(dirname(database), { recursive: true });
   return {
     type: 'better-sqlite3',
-    database: join(process.cwd(), file),
+    database,
     entities,
     synchronize,
     logging,
