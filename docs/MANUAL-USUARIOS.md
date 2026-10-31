@@ -15,7 +15,7 @@ Guía para los usuarios contadores que evaluarán el sistema. Sisven Cont es un 
 ## 2. Concepto clave: una sola empresa compartida
 
 - **Todos los usuarios trabajan sobre la misma empresa.** Lo que un usuario registre (una venta, un asiento, un movimiento bancario) lo verán los demás de inmediato.
-- Al entrar, seleccione la empresa en el **selector "Empresa"** de la barra superior. Sin empresa seleccionada no se muestran los módulos.
+- Al entrar, el sistema **selecciona su empresa automáticamente**. Si tuviera acceso a más de una, puede cambiarla con el **selector "Empresa"** de la barra superior.
 - El sistema soporta múltiples empresas, pero para esta evaluación solo hay una — **cuidado con lo que registren: los datos son compartidos y reales para todos.**
 
 ## 3. Roles y permisos
@@ -131,7 +131,7 @@ Notas:
 
 Orden recomendado para evaluar el sistema de punta a punta:
 
-1. **Entrar** con sus credenciales y seleccionar la empresa.
+1. **Entrar** con sus credenciales — la empresa queda seleccionada automáticamente.
 2. **Ventas**: emitir una factura a `J-29887123-7`, a crédito, base imponible en USD — observe el asiento en tiempo real.
 3. Emitir otra **a contado cobrada en divisas** y verifique el IGTF 3% en el asiento.
 4. **Ventas → Reporte Z**: registre el cierre de un día de máquina fiscal (N° de Z + serial) — vea cómo queda en el Libro de Ventas sin datos de comprador.
@@ -149,7 +149,7 @@ Orden recomendado para evaluar el sistema de punta a punta:
 ## 7. Preguntas frecuentes
 
 **No veo ningún módulo / datos.**
-→ Seleccione la empresa en el selector superior de la pantalla.
+→ Verifique que el selector "Empresa" (arriba a la izquierda) muestre su empresa. Si no aparece ninguna, pida al administrador que le asigne acceso.
 
 **No me aparece el formulario de ventas/compras.**
 → Su usuario es CONSULTA (solo lectura). Ese rol revisa y descarga, pero no registra operaciones — es deliberado.

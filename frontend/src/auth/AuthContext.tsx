@@ -43,15 +43,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
   const [loading, setLoading] = useState(!!localStorage.getItem('sisven_token'));
 
+  // Conserva el tenant guardado si sigue accesible; si no, selecciona la
+  // primera empresa de la lista (o ninguna si el usuario no tiene acceso).
+  const resolveTenant = useCallback((list: Tenant[]) => {
+    const stored = localStorage.getItem('sisven_tenant');
+    const desired = stored && list.some((t) => t.tenant_id === stored)
+      ? stored
+      : (list[0]?.tenant_id ?? null);
+    if (desired) localStorage.setItem('sisven_tenant', desired);
+    else localStorage.removeItem('sisven_tenant');
+    setTenantId(desired);
+  }, []);
+
   const applyMe = useCallback((data: any) => {
     setUser({ sub: data.user_id ?? data.sub, email: data.email, role: data.role, full_name: data.full_name });
-    setTenants(data.tenants ?? []);
-    const stored = localStorage.getItem('sisven_tenant');
-    if (stored && !(data.tenants ?? []).some((t: Tenant) => t.tenant_id === stored)) {
-      localStorage.removeItem('sisven_tenant');
-      setTenantId(null);
-    }
-  }, []);
+    const list = data.tenants ?? [];
+    setTenants(list);
+    resolveTenant(list);
+  }, [resolveTenant]);
 
   const refreshMe = useCallback(async () => {
     const { data } = await api.get('/auth/me');
@@ -67,9 +76,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { data } = await api.post('/auth/login', { email, password });
     localStorage.setItem('sisven_token', data.access_token);
     setUser(data.user);
-    setTenants(data.tenants ?? []);
-    return { user: data.user, tenants: data.tenants ?? [] };
-  }, []);
+    const list = data.tenants ?? [];
+    setTenants(list);
+    resolveTenant(list);
+    return { user: data.user, tenants: list };
+  }, [resolveTenant]);
 
   const logout = useCallback(() => {
     localStorage.removeItem('sisven_token');
