@@ -68,6 +68,7 @@ El backend sirve la API y el frontend compilado en un solo proceso (puerto 3000)
 ➡️ [`MANUAL.md`](MANUAL.md) — guía de instalación paso a paso para el administrador del servidor.
 📖 [`docs/DEPLOY.md`](docs/DEPLOY.md) — referencia técnica detallada.
 ✅ [`docs/VERIFICACION.md`](docs/VERIFICACION.md) — checklist de verificación post-despliegue + `scripts/verify-deploy.sh`.
+👥 [`docs/MANUAL-USUARIOS.md`](docs/MANUAL-USUARIOS.md) — guía de uso para los usuarios contadores.
 
 ## Funcionalidades
 

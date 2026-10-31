@@ -138,7 +138,7 @@ ADMIN_EMAIL=admin@tuempresa.com ADMIN_PASSWORD='tu-clave' \
 ./scripts/verify-deploy.sh
 ```
 
-Todo en PASS = sistema listo. Entrega la URL a los contadores.
+Todo en PASS = sistema listo. Entrega la URL a los contadores junto con la guía de uso en [`docs/MANUAL-USUARIOS.md`](docs/MANUAL-USUARIOS.md).
 
 ---
 
