@@ -37,7 +37,7 @@ export class SeedService {
         this.logger.warn(`SEED_USERS: entrada ignorada (formato inválido): ${item}`);
         continue;
       }
-      const normalizedRole = role.trim().toUpperCase();
+      const normalizedRole = role.trim().toUpperCase() as User['role'];
       if (!['ADMIN', 'CONTADOR', 'CONSULTA'].includes(normalizedRole)) {
         this.logger.warn(`SEED_USERS: rol inválido '${role}' en: ${item}`);
         continue;

@@ -6,12 +6,17 @@ import {
   btnDanger, btnPrimary, btnSecondary, Card, EmptyState, ErrorBox, inputCls, tdCls, thCls,
 } from '../components/ui';
 
+const LEVEL_LENGTHS = [1, 3, 6, 9, 12, 16];
+const levelOf = (code: string) => LEVEL_LENGTHS.indexOf(code.length) + 1;
+
 export default function ChartPage() {
   const { tenant, user } = useAuth();
   const qc = useQueryClient();
   const [error, setError] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ code: '', name: '', niif_classification: '' });
+  const [editing, setEditing] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState({ name: '', niif_classification: '' });
   const canEdit = user?.role !== 'CONSULTA';
 
   const chart = useQuery({
@@ -36,10 +41,26 @@ export default function ChartPage() {
     onError: (e) => setError(apiError(e)),
   });
 
+  const update = useMutation({
+    mutationFn: ({ id, dto }: { id: string; dto: any }) =>
+      api.patch(`/chart-of-accounts/${id}`, dto).then((r) => r.data),
+    onSuccess: () => {
+      setEditing(null);
+      qc.invalidateQueries({ queryKey: ['chart'] });
+    },
+    onError: (e) => setError(apiError(e)),
+  });
+
   const submit = (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    create.mutate({ ...form, is_selectable: true });
+    const level = levelOf(form.code);
+    if (!level) {
+      return setError('Código inválido: use el formato N.N.NN.NN.NN.NNN (niveles 1-6)');
+    }
+    // Solo las cuentas de nivel 6 (auxiliares) son seleccionables; los niveles
+    // intermedios se crean como grupos.
+    create.mutate({ ...form, is_selectable: level === 6 });
   };
 
   const accounts: any[] = chart.data ?? [];
@@ -61,7 +82,11 @@ export default function ChartPage() {
       <ErrorBox message={error} />
 
       {showForm && (
-        <Card title="Nueva cuenta auxiliar">
+        <Card title="Nueva cuenta">
+          <p className="text-xs text-slate-500 mb-3">
+            Cree grupos intermedios si lo necesita (ej. <code>4.1.02</code> → <code>4.1.02.01</code>) y la
+            auxiliar de nivel 6 al final (<code>4.1.02.01.01.000</code>). Solo las auxiliares reciben asientos.
+          </p>
           <form onSubmit={submit} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
             <label className="block">
               <span className="text-xs font-semibold text-slate-600">Código (N.N.NN.NN.NN.NNN)</span>
@@ -92,18 +117,43 @@ export default function ChartPage() {
                   <td className={tdCls + ' font-mono whitespace-nowrap'}>
                     <span style={{ paddingLeft: `${(a.level - 1) * 14}px` }}>{a.code}</span>
                   </td>
-                  <td className={tdCls}>{a.name}</td>
+                  <td className={tdCls}>
+                    {editing === a.account_id ? (
+                      <input className={inputCls + ' py-1 text-sm'} value={editForm.name}
+                        onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} autoFocus />
+                    ) : a.name}
+                  </td>
                   <td className={tdCls}>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${a.nature === 'DEUDORA' ? 'bg-blue-100 text-blue-700' : 'bg-purple-100 text-purple-700'}`}>
                       {a.nature}
                     </span>
                   </td>
                   <td className={tdCls}>{a.is_selectable ? 'Sí' : '—'}</td>
-                  <td className={tdCls + ' text-xs text-slate-500'}>{a.niif_classification ?? '—'}</td>
+                  <td className={tdCls + ' text-xs text-slate-500'}>
+                    {editing === a.account_id ? (
+                      <input className={inputCls + ' py-1 text-xs'} value={editForm.niif_classification}
+                        onChange={(e) => setEditForm({ ...editForm, niif_classification: e.target.value })}
+                        placeholder="Clasificación NIIF" />
+                    ) : (a.niif_classification ?? '—')}
+                  </td>
                   <td className={tdCls + ' text-right'}>
-                    {canEdit && a.level === 6 && (
-                      <button className={btnDanger} onClick={() => remove.mutate(a.account_id)}>Eliminar</button>
-                    )}
+                    {canEdit && editing === a.account_id ? (
+                      <span className="space-x-2">
+                        <button className="text-xs text-emerald-700 font-semibold"
+                          onClick={() => update.mutate({ id: a.account_id, dto: editForm })}>Guardar</button>
+                        <button className="text-xs text-slate-400" onClick={() => setEditing(null)}>Cancelar</button>
+                      </span>
+                    ) : canEdit ? (
+                      <span className="space-x-2">
+                        <button className="text-xs text-blue-600 font-semibold"
+                          onClick={() => { setEditing(a.account_id); setEditForm({ name: a.name, niif_classification: a.niif_classification ?? '' }); }}>
+                          Editar
+                        </button>
+                        {a.level === 6 && (
+                          <button className={btnDanger} onClick={() => remove.mutate(a.account_id)}>Eliminar</button>
+                        )}
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               ))}

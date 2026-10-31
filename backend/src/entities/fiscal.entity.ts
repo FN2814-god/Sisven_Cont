@@ -38,6 +38,14 @@ export class SalesBook {
   @Column()
   numero_control: string;
 
+  /** FACTURA: factura por cliente | REPORTE_Z: venta consolidada por máquina fiscal */
+  @Column({ type: 'varchar', default: 'FACTURA' })
+  tipo_documento: string;
+
+  /** Serial de la máquina fiscal cuando el documento es un Reporte Z */
+  @Column({ type: 'varchar', nullable: true })
+  serial_maquina: string | null;
+
   @Column(decimalColumn())
   total_ventas_con_iva: number;
 

@@ -16,6 +16,8 @@ export default function SalesPage() {
   const [error, setError] = useState<string | null>(null);
   const [ok, setOk] = useState<string | null>(null);
   const [form, setForm] = useState({
+    tipo_documento: 'FACTURA' as 'FACTURA' | 'REPORTE_Z',
+    numero_reporte_z: '', serial_maquina: '',
     fecha_factura: new Date().toISOString().substring(0, 10),
     rif_comprador: '', nombre_comprador: '',
     amounts_in: 'USD' as 'USD' | 'VES',
@@ -23,8 +25,10 @@ export default function SalesPage() {
     condicion: 'CONTADO' as 'CONTADO' | 'CREDITO',
     cobro_en: 'USD' as 'USD' | 'VES',
     igtf_percibido_3: '0',
+    income_account_code: '',
     bcv_exchange_rate: '',
   });
+  const isZ = form.tipo_documento === 'REPORTE_Z';
 
   const sales = useQuery({
     queryKey: ['sales', tenant?.tenant_id],
@@ -36,6 +40,14 @@ export default function SalesPage() {
     queryFn: () => api.get('/bcv/rate').then((r) => r.data),
     retry: 0,
   });
+  const chart = useQuery({
+    queryKey: ['chart', tenant?.tenant_id],
+    queryFn: () => api.get('/chart-of-accounts').then((r) => r.data),
+    enabled: !!tenant,
+  });
+  const incomeAccounts = (chart.data ?? []).filter(
+    (a: any) => a.is_selectable && a.code.startsWith('4.'),
+  );
   if (!form.bcv_exchange_rate && rateQ.data?.rate) {
     setForm((f) => ({ ...f, bcv_exchange_rate: String(rateQ.data.rate) }));
   }
@@ -43,9 +55,12 @@ export default function SalesPage() {
   const save = useMutation({
     mutationFn: (payload: any) => api.post('/sales', payload).then((r) => r.data),
     onSuccess: (d) => {
-      setOk(`Factura N° ${d.numero_factura} registrada con asiento automático.`);
+      setOk(`Documento N° ${d.numero_factura} registrado con asiento automático.`);
       setError(null);
-      setForm((f) => ({ ...f, rif_comprador: '', nombre_comprador: '', base_imponible: '', ventas_exentas: '0', igtf_percibido_3: '0' }));
+      setForm((f) => ({
+        ...f, rif_comprador: '', nombre_comprador: '', numero_reporte_z: '',
+        serial_maquina: '', base_imponible: '', ventas_exentas: '0', igtf_percibido_3: '0',
+      }));
       qc.invalidateQueries({ queryKey: ['sales'] });
       qc.invalidateQueries({ queryKey: ['stats'] });
     },
@@ -63,9 +78,13 @@ export default function SalesPage() {
   const totalVes = r2(baseVes + ivaVes + exentaVes + igtfVes);
   const totalUsd = r2(totalVes / (rate || 1));
 
+  const incomeAccName = form.income_account_code
+    ? (incomeAccounts.find((a: any) => a.code === form.income_account_code)?.name ?? 'Ingresos')
+    : 'Ventas de Mercancías Gravadas 16%';
+
   const previewLines = [
     { acc: form.condicion === 'CONTADO' ? (form.cobro_en === 'USD' ? 'Caja Chica / Custodia Divisas' : 'Bancos Nacionales (VES)') : 'Cuentas por Cobrar Comerciales', d: totalVes, c: 0 },
-    { acc: 'Ventas de Mercancías Gravadas 16%', d: 0, c: baseVes },
+    { acc: incomeAccName, d: 0, c: baseVes },
     ...(ivaVes > 0 ? [{ acc: 'Débito Fiscal IVA 16%', d: 0, c: ivaVes }] : []),
     ...(exentaVes > 0 ? [{ acc: 'Ventas de Mercancías Exentas', d: 0, c: exentaVes }] : []),
     ...(igtfVes > 0 ? [{ acc: 'IGTF por Pagar / Enterar (3%)', d: 0, c: igtfVes }] : []),
@@ -73,11 +92,18 @@ export default function SalesPage() {
 
   const submit = (e: FormEvent) => {
     e.preventDefault();
-    if (!isValidRif(form.rif_comprador)) return setError('RIF del comprador inválido');
+    if (isZ && !form.numero_reporte_z.trim()) {
+      return setError('Indique el número del Reporte Z');
+    }
+    if (!isZ && !isValidRif(form.rif_comprador)) return setError('RIF del comprador inválido');
     save.mutate({
+      tipo_documento: form.tipo_documento,
+      serial_maquina: isZ ? (form.serial_maquina || undefined) : undefined,
+      numero_factura: isZ ? form.numero_reporte_z.trim() : undefined,
       fecha_factura: form.fecha_factura,
-      rif_comprador: form.rif_comprador,
-      nombre_comprador: form.nombre_comprador,
+      rif_comprador: isZ ? undefined : form.rif_comprador,
+      nombre_comprador: isZ ? undefined : form.nombre_comprador,
+      income_account_code: form.income_account_code || undefined,
       amounts_in: form.amounts_in,
       base_imponible: parseFloat(form.base_imponible) || 0,
       ventas_exentas: parseFloat(form.ventas_exentas) || 0,
@@ -93,18 +119,41 @@ export default function SalesPage() {
       <h1 className="text-2xl font-bold">Ventas y Facturación</h1>
       {canEdit && (
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <Card title="Emisión de Factura Fiscal">
+        <Card title="Emisión de Documento de Venta">
           <form onSubmit={submit} className="space-y-4">
             <ErrorBox message={error} />
             {ok && <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-sm rounded-lg px-4 py-2">{ok}</div>}
+            <div className="flex space-x-2">
+              <button type="button" onClick={() => setForm({ ...form, tipo_documento: 'FACTURA' })}
+                className={form.tipo_documento === 'FACTURA' ? btnPrimary : 'px-3 py-1.5 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200'}>
+                Factura fiscal
+              </button>
+              <button type="button" onClick={() => setForm({ ...form, tipo_documento: 'REPORTE_Z' })}
+                className={isZ ? btnPrimary : 'px-3 py-1.5 rounded-lg text-sm font-semibold bg-slate-100 text-slate-600 hover:bg-slate-200'}>
+                Reporte Z (máquina fiscal)
+              </button>
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <Field label="Fecha"><input type="date" className={inputCls} value={form.fecha_factura} onChange={(e) => setForm({ ...form, fecha_factura: e.target.value })} /></Field>
               <Field label="Tasa BCV"><input type="number" step="0.0001" className={inputCls} value={form.bcv_exchange_rate} onChange={(e) => setForm({ ...form, bcv_exchange_rate: e.target.value })} required /></Field>
-              <Field label="RIF del comprador">
-                <input className={inputCls} value={form.rif_comprador} onChange={(e) => setForm({ ...form, rif_comprador: e.target.value })} placeholder="J-12345678-9" required />
-                {form.rif_comprador && !isValidRif(form.rif_comprador) && <span className="text-xs text-red-600">RIF inválido</span>}
-              </Field>
-              <Field label="Nombre / Razón Social"><input className={inputCls} value={form.nombre_comprador} onChange={(e) => setForm({ ...form, nombre_comprador: e.target.value })} required /></Field>
+              {isZ ? (
+                <>
+                  <Field label="N° de Reporte Z" hint="Venta consolidada del día">
+                    <input className={inputCls} value={form.numero_reporte_z} onChange={(e) => setForm({ ...form, numero_reporte_z: e.target.value })} placeholder="000123" required />
+                  </Field>
+                  <Field label="Serial de la máquina" hint="Opcional">
+                    <input className={inputCls} value={form.serial_maquina} onChange={(e) => setForm({ ...form, serial_maquina: e.target.value })} placeholder="Z7F1234567" />
+                  </Field>
+                </>
+              ) : (
+                <>
+                  <Field label="RIF del comprador">
+                    <input className={inputCls} value={form.rif_comprador} onChange={(e) => setForm({ ...form, rif_comprador: e.target.value })} placeholder="J-12345678-9" required />
+                    {form.rif_comprador && !isValidRif(form.rif_comprador) && <span className="text-xs text-red-600">RIF inválido</span>}
+                  </Field>
+                  <Field label="Nombre / Razón Social"><input className={inputCls} value={form.nombre_comprador} onChange={(e) => setForm({ ...form, nombre_comprador: e.target.value })} required /></Field>
+                </>
+              )}
               <Field label="Montos expresados en">
                 <select className={inputCls} value={form.amounts_in} onChange={(e) => setForm({ ...form, amounts_in: e.target.value as any })}>
                   <option value="USD">Divisas (USD)</option><option value="VES">Bolívares (VES)</option>
@@ -125,13 +174,21 @@ export default function SalesPage() {
               <Field label={`Base imponible 16% (${form.amounts_in})`}><input type="number" step="0.01" className={inputCls} value={form.base_imponible} onChange={(e) => setForm({ ...form, base_imponible: e.target.value })} required /></Field>
               <Field label="Ventas exentas (Bs.)"><input type="number" step="0.01" className={inputCls} value={form.ventas_exentas} onChange={(e) => setForm({ ...form, ventas_exentas: e.target.value })} /></Field>
               <Field label="IGTF percibido 3% (Bs.)"><input type="number" step="0.01" className={inputCls} value={form.igtf_percibido_3} onChange={(e) => setForm({ ...form, igtf_percibido_3: e.target.value })} /></Field>
+              <Field label="Cuenta de ingreso" hint="Para servicios u otros rubros">
+                <select className={inputCls} value={form.income_account_code} onChange={(e) => setForm({ ...form, income_account_code: e.target.value })}>
+                  <option value="">Ventas de Mercancías (por defecto)</option>
+                  {incomeAccounts.filter((a: any) => a.code !== '4.1.01.01.01.000').map((a: any) => (
+                    <option key={a.account_id} value={a.code}>{a.code} · {a.name}</option>
+                  ))}
+                </select>
+              </Field>
             </div>
             <div className="bg-slate-50 rounded-lg p-3 text-sm flex justify-between font-semibold">
-              <span>Total factura</span>
+              <span>Total {isZ ? 'del reporte' : 'factura'}</span>
               <span>{fmtVes(totalVes)} · {fmtUsd(totalUsd)}</span>
             </div>
             <button className={btnPrimary + ' w-full'} disabled={save.isPending}>
-              {save.isPending ? 'Registrando…' : 'Emitir factura con asiento automático'}
+              {save.isPending ? 'Registrando…' : isZ ? 'Registrar Reporte Z con asiento automático' : 'Emitir factura con asiento automático'}
             </button>
           </form>
         </Card>
@@ -163,7 +220,12 @@ export default function SalesPage() {
                   <tr key={s.sale_id}>
                     <td className={tdCls}>{s.numero_operacion}</td>
                     <td className={tdCls}>{s.fecha_factura}</td>
-                    <td className={tdCls + ' font-mono'}>{s.numero_factura}</td>
+                    <td className={tdCls + ' font-mono'}>
+                      {s.numero_factura}
+                      {s.tipo_documento === 'REPORTE_Z' && (
+                        <span className="ml-1 text-[10px] font-bold bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded-full">Z</span>
+                      )}
+                    </td>
                     <td className={tdCls + ' font-mono'}>{s.numero_control}</td>
                     <td className={tdCls}>{s.nombre_comprador}<br /><span className="text-xs text-slate-400">{s.rif_comprador}</span></td>
                     <td className={tdCls + ' text-right font-mono'}>{fmtVes(s.base_imponible_16)}</td>

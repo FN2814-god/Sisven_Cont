@@ -34,6 +34,14 @@ export class ReportsController {
     return this.svc.ledger(requireTenant(t), accountId, requireDate(from, 'from'), requireDate(to, 'to'));
   }
 
+  /** Libro Mayor analítico: todas las cuentas del rango con sus movimientos */
+  @Get('analytical-ledger')
+  analyticalLedger(@TenantId() t: string | undefined,
+                   @Query('from') from?: string, @Query('to') to?: string) {
+    return this.svc.analyticalLedger(
+      requireTenant(t), requireDate(from, 'from'), requireDate(to, 'to'));
+  }
+
   /** Balance de Comprobación del mes */
   @Get('trial-balance')
   trialBalance(@TenantId() t: string | undefined, @Query('year') year?: string, @Query('period') period?: string) {

@@ -138,6 +138,101 @@ export class ReportsService {
     };
   }
 
+  /**
+   * LIBRO MAYOR ANALÍTICO: todas las cuentas seleccionables con actividad,
+   * cada una con saldo anterior + movimientos del rango + saldo actual.
+   */
+  async analyticalLedger(tenantId: string, from: string, to: string) {
+    const [prev, current, movements, accounts] = await Promise.all([
+      this.aggregate(tenantId, undefined, this.prevDay(from)),
+      this.aggregate(tenantId, from, to),
+      this.lines
+        .createQueryBuilder('l')
+        .innerJoin(JournalEntry, 'e', 'e.entry_id = l.entry_id')
+        .select('l.account_id', 'account_id')
+        .addSelect('e.entry_date', 'entry_date')
+        .addSelect('e.entry_number', 'entry_number')
+        .addSelect('e.concept', 'concept')
+        .addSelect('e.source_module', 'source_module')
+        .addSelect('l.description', 'description')
+        .addSelect('l.debit_ves', 'debit_ves')
+        .addSelect('l.credit_ves', 'credit_ves')
+        .addSelect('l.debit_usd', 'debit_usd')
+        .addSelect('l.credit_usd', 'credit_usd')
+        .where('l.tenant_id = :tenantId AND e.status = :st', { tenantId, st: 'ASENTADO' })
+        .andWhere('e.entry_date BETWEEN :from AND :to', { from, to })
+        .orderBy('e.entry_date', 'ASC')
+        .addOrderBy('e.entry_number', 'ASC')
+        .getRawMany(),
+      this.chart.find({ where: { tenant_id: tenantId, is_selectable: true } }),
+    ]);
+
+    const prevByAcc = new Map(prev.map((r) => [r.account_id, r]));
+    const curByAcc = new Map(current.map((r) => [r.account_id, r]));
+    const movsByAcc = new Map<string, typeof movements>();
+    for (const m of movements) {
+      const list = movsByAcc.get(m.account_id) ?? [];
+      list.push(m);
+      movsByAcc.set(m.account_id, list);
+    }
+
+    const accIds = new Set([
+      ...prev.map((r) => r.account_id),
+      ...curByAcc.keys(),
+      ...movsByAcc.keys(),
+    ]);
+    const selectable = new Map(accounts.map((a) => [a.account_id, a]));
+
+    const result = [...accIds]
+      .filter((id) => selectable.has(id))
+      .map((id) => {
+        const acc = selectable.get(id)!;
+        const prevRow = prevByAcc.get(id);
+        const cur = curByAcc.get(id);
+        const opening = prevRow ? ReportsService.net(prevRow) : 0;
+        const openingUsd = prevRow ? ReportsService.netUsd(prevRow) : 0;
+
+        let running = opening;
+        const movs = (movsByAcc.get(id) ?? []).map((m) => {
+          running = r2(running + m.debit_ves - m.credit_ves);
+          return {
+            entry_date: m.entry_date,
+            entry_number: m.entry_number,
+            concept: m.description || m.concept,
+            source_module: m.source_module,
+            debit_ves: r2(+m.debit_ves),
+            credit_ves: r2(+m.credit_ves),
+            debit_usd: r2(+m.debit_usd),
+            credit_usd: r2(+m.credit_usd),
+            saldo_ves: running,
+          };
+        });
+
+        return {
+          account_id: id,
+          code: acc.code,
+          name: acc.name,
+          nature: acc.nature,
+          opening_ves: opening,
+          opening_usd: openingUsd,
+          movement_debit_ves: cur?.debit_ves ?? 0,
+          movement_credit_ves: cur?.credit_ves ?? 0,
+          closing_ves: running,
+          movements: movs,
+        };
+      })
+      .sort((a, b) => a.code.localeCompare(b.code));
+
+    return {
+      from, to,
+      accounts: result,
+      totals: {
+        movement_debit_ves: r2(result.reduce((s, a) => s + a.movement_debit_ves, 0)),
+        movement_credit_ves: r2(result.reduce((s, a) => s + a.movement_credit_ves, 0)),
+      },
+    };
+  }
+
   /** BALANCE DE COMPROBACIÓN: saldos anteriores, movimientos del mes, saldos actuales */
   async trialBalance(tenantId: string, year: number, month: number) {
     const from = `${year}-${String(month).padStart(2, '0')}-01`;

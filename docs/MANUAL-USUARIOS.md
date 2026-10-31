@@ -40,9 +40,11 @@ El usuario **CONSULTA** no verá los formularios de registro — es un perfil de
 
 Panel general: ventas y compras del mes en curso, IVA retenido por enterar (si la empresa es agente de retención), partidas bancarias pendientes de conciliar y la condición tributaria de la empresa (SPE y su % de retención).
 
-### 4.2 Ventas — Emisión de factura fiscal
+### 4.2 Ventas — Factura fiscal y Reporte Z
 
-Formulario de factura con los siguientes campos:
+El módulo ofrece dos tipos de documento, seleccionables con los botones superiores del formulario:
+
+**Factura fiscal** (clientes con factura):
 
 - **Fecha** y **Tasa BCV** del día.
 - **RIF del comprador** — debe ser un RIF válido según Módulo 11 (ver §5). El sistema avisa en rojo si el dígito verificador no cuadra.
@@ -50,8 +52,15 @@ Formulario de factura con los siguientes campos:
 - **Condición**: Contado o Crédito.
 - **Cobrado en** (solo a contado): si elige **Divisas**, aplica el IGTF (Impuesto a las Grandes Transacciones Financieras, 3%).
 - **Base imponible 16%**, **Ventas exentas** e **IGTF percibido** en bolívares.
+- **Cuenta de ingreso** (opcional): por defecto acredita "Ventas de Mercancías Gravadas"; puede elegir otra cuenta 4.x del plan — útil para empresas de servicios u otros rubros.
 
-A la derecha se muestra **el asiento contable en tiempo real** que se generará (caja/cuentas por cobrar, ventas, débito fiscal, IGTF). Al pulsar **"Emitir factura con asiento automático"** la operación queda en el **Libro de Ventas** y contabilizada sin pasos extra.
+**Reporte Z (máquina fiscal)** — para comercios que emiten máquina fiscal y solo reportan el Z diario:
+
+- No requiere comprador: se registra como **"VENTA A CONTADO (MÁQUINA FISCAL)"** con el RIF de la propia empresa, que es como se asientan las ventas consolidadas en el Libro de Ventas.
+- Indique el **N° del Reporte Z** (obligatorio) y el **serial de la máquina** (opcional).
+- Los totales del día — base gravada y exentas — se cargan tal como salen en el Z y en el Libro de Ventas la línea aparece marcada con una insignia **Z**.
+
+A la derecha se muestra **el asiento contable en tiempo real** que se generará (caja/cuentas por cobrar, ingresos, débito fiscal, IGTF). Al registrar queda en el **Libro de Ventas** y contabilizado sin pasos extra.
 
 ### 4.3 Compras — Factura de proveedor con retenciones
 
@@ -72,10 +81,10 @@ El panel **"Resumen de retenciones"** muestra base, IVA, retenciones practicadas
 
 ### 4.5 Contabilidad
 
-- **Plan de Cuentas**: estructura VEN-NIF PYME precargada al crear la empresa. Permite crear **cuentas auxiliares (nivel 6)** bajo los padres existentes.
-- **Libro Diario**: asientos legales numerados en orden cronológico — ventas, compras y manuales aparecen aquí.
+- **Plan de Cuentas**: estructura VEN-NIF PYME precargada al crear la empresa. Es **editable**: puede crear cuentas auxiliares (nivel 6) y también grupos intermedios si necesita ramas nuevas (cree los padres primero, ej. `4.1.02` → `4.1.02.01` → `4.1.02.01.01.000`), **renombrar** cualquier cuenta con el botón *Editar* (útil para adaptar el plan a empresas de servicios) y **eliminar** auxiliares que no tengan movimientos.
+- **Libro Diario**: asientos legales numerados en orden cronológico — ventas, compras y manuales aparecen aquí. Por defecto se muestra **en bolívares** (formato del libro legal); el botón *Bimoneda* agrega las columnas en divisas.
 - **Asientos Manuales**: comprobantes de partida doble **bimoneda** (cada línea lleva cuenta, tercero opcional por RIF, debe y haber en Bs. y USD). El comprobante no se asienta si no cuadra.
-- **Libro Mayor**: movimientos y saldo por cuenta.
+- **Libro Mayor**: dos vistas. El **Mayor del período** muestra todas las cuentas del mes en una tabla (saldo anterior | debe | haber | saldo actual) — haga clic en cualquier cuenta para desplegar sus movimientos con saldo corrido; imprimible. Debajo se mantiene la **consulta por cuenta individual** con rango de fechas libre.
 - **Balance de Comprobación**: sumas y saldos del período.
 - **Estados Financieros**: Balance General (activos/pasivos/patrimonio por grupos) y Estado de Resultados (ingresos, costos, gastos) del rango seleccionado.
 - **Períodos Fiscales**: los 12 meses del ejercicio se crearon con la empresa. **Cerrar** un período bloquea nuevos asientos en él; **reabrir** es exclusivo del ADMIN.
@@ -125,14 +134,17 @@ Orden recomendado para evaluar el sistema de punta a punta:
 1. **Entrar** con sus credenciales y seleccionar la empresa.
 2. **Ventas**: emitir una factura a `J-29887123-7`, a crédito, base imponible en USD — observe el asiento en tiempo real.
 3. Emitir otra **a contado cobrada en divisas** y verifique el IGTF 3% en el asiento.
-4. **Compras**: registrar una factura de `J-30567891-0` con concepto ISLR `057` (servicios PJ, 2%) — revise el neto a pagar.
-5. Registrar otra compra a `V-15432109-4` con concepto `001` (honorarios PN, 3% + sustraendo UT).
-6. **Libro Diario**: confirmar que los 4 documentos generaron asientos cuadrados.
-7. **Asientos Manuales**: crear un comprobante simple (ej. pago de nómina) y verificar que rechaza uno descuadrado.
-8. **Tesorería**: crear una cuenta bancaria, cargar 2-3 partidas de extracto que coincidan con movimientos internos, **Ejecutar conciliación** y revisar las 4 fases.
-9. **Libros SENIAT**: descargar el TXT de retenciones IVA y el XML de ISLR del período.
-10. **Reportes**: Balance de Comprobación, Estados Financieros y Libro Mayor — deben reflejar todo lo registrado.
-11. **Períodos Fiscales**: cerrar el mes e intente registrar una venta en él — el sistema lo impedirá.
+4. **Ventas → Reporte Z**: registre el cierre de un día de máquina fiscal (N° de Z + serial) — vea cómo queda en el Libro de Ventas sin datos de comprador.
+5. **Compras**: registrar una factura de `J-30567891-0` con concepto ISLR `057` (servicios PJ, 2%) — revise el neto a pagar.
+6. Registrar otra compra a `V-15432109-4` con concepto `001` (honorarios PN, 3% + sustraendo UT).
+7. **Plan de Cuentas**: cree una auxiliar (ej. `4.1.01.02.01.001` "Ingresos por Servicios") y pruebe emitir una factura seleccionándola como cuenta de ingreso.
+8. **Libro Diario**: confirmar que los documentos generaron asientos cuadrados — alterne la vista Bs./Bimoneda.
+9. **Asientos Manuales**: crear un comprobante simple (ej. pago de nómina) y verificar que rechaza uno descuadrado.
+10. **Tesorería**: crear una cuenta bancaria, cargar 2-3 partidas de extracto que coincidan con movimientos internos, **Ejecutar conciliación** y revisar las 4 fases.
+11. **Libros SENIAT**: descargar el TXT de retenciones IVA y el XML de ISLR del período.
+12. **Libro Mayor**: abra el Mayor del período y verifique que cada cuenta muestra saldo anterior, movimientos y saldo actual — expanda una para ver el detalle.
+13. **Reportes**: Balance de Comprobación y Estados Financieros — deben reflejar todo lo registrado.
+14. **Períodos Fiscales**: cerrar el mes e intente registrar una venta en él — el sistema lo impedirá.
 
 ## 7. Preguntas frecuentes
 

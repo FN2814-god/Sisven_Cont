@@ -4,6 +4,8 @@ import {
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { SalesBook } from '../../entities/fiscal.entity';
+import { Tenant } from '../../entities/tenant.entity';
+import { ChartOfAccount } from '../../entities/accounting.entity';
 import { JournalService } from '../accounting/journal.service';
 import { AutomaticJournalGenerator, STANDARD_ACCOUNTS } from '../../shared/accounting/automatic-journal-generator';
 import { JournalEntryDto, JournalEntryLineDto } from '../../shared/accounting/types';
@@ -11,9 +13,15 @@ import { BcvExchangeService } from '../../shared/seniat/bcv-service';
 import { RifValidator } from '../../shared/seniat/rif-validator';
 
 export interface CreateSaleDto {
+  /** FACTURA: documento por cliente | REPORTE_Z: venta consolidada de máquina fiscal */
+  tipo_documento?: 'FACTURA' | 'REPORTE_Z';
+  /** Serial de la máquina fiscal (solo Reporte Z) */
+  serial_maquina?: string;
   fecha_factura?: string;
-  rif_comprador: string;
-  nombre_comprador: string;
+  /** Requerido salvo en REPORTE_Z */
+  rif_comprador?: string;
+  nombre_comprador?: string;
+  /** En REPORTE_Z es el número del reporte Z — requerido */
   numero_factura?: string;
   numero_control?: string;
   /** Moneda en que se expresan los montos de entrada */
@@ -26,6 +34,8 @@ export interface CreateSaleDto {
   cobro_en?: 'USD' | 'VES';
   igtf_percibido_3?: number;
   iva_retenido_terceros?: number;
+  /** Cuenta 4.x de ingreso a acreditar (default: ventas de mercancías gravadas) */
+  income_account_code?: string;
   bcv_exchange_rate: number;
 }
 
@@ -45,9 +55,42 @@ export class SalesService {
   }
 
   async create(tenantId: string, userId: string, dto: CreateSaleDto) {
-    if (!RifValidator.isValid(dto.rif_comprador)) {
-      throw new BadRequestException(`RIF del comprador inválido: ${dto.rif_comprador}`);
+    const isReporteZ = dto.tipo_documento === 'REPORTE_Z';
+    let rifComprador = dto.rif_comprador;
+    let nombreComprador = dto.nombre_comprador;
+
+    if (isReporteZ) {
+      if (!dto.numero_factura) {
+        throw new BadRequestException('Indique el número del Reporte Z emitido por la máquina fiscal');
+      }
+      // Venta consolidada: el comprador se asienta como "venta a contado" con el RIF propio
+      const tenant = await this.ds.getRepository(Tenant).findOne({ where: { tenant_id: tenantId } });
+      rifComprador = tenant?.rif ?? 'VENTA A CONTADO';
+      nombreComprador = dto.nombre_comprador || 'VENTA A CONTADO (MÁQUINA FISCAL)';
+    } else {
+      if (!rifComprador || !nombreComprador) {
+        throw new BadRequestException('RIF y nombre del comprador son requeridos');
+      }
+      if (!RifValidator.isValid(rifComprador)) {
+        throw new BadRequestException(`RIF del comprador inválido: ${rifComprador}`);
+      }
     }
+
+    // Cuenta de ingreso configurable (empresas de servicios, etc.)
+    let incomeAcc = {
+      code: STANDARD_ACCOUNTS.VENTAS_GRAVADAS_16.code,
+      name: STANDARD_ACCOUNTS.VENTAS_GRAVADAS_16.name,
+    };
+    if (dto.income_account_code) {
+      const acc = await this.ds.getRepository(ChartOfAccount).findOne({
+        where: { tenant_id: tenantId, code: dto.income_account_code },
+      });
+      if (!acc || !acc.is_selectable || !acc.code.startsWith('4.')) {
+        throw new BadRequestException('La cuenta de ingreso debe ser una cuenta 4.x seleccionable del plan');
+      }
+      incomeAcc = { code: acc.code, name: acc.name };
+    }
+
     const rate = dto.bcv_exchange_rate;
     if (!rate || rate <= 0) throw new BadRequestException('Tasa BCV inválida');
     const dateStr = dto.fecha_factura || new Date().toISOString().substring(0, 10);
@@ -91,7 +134,14 @@ export class SalesService {
         );
         numeroFactura = String(parseInt(fRow.n, 10)).padStart(6, '0');
       }
-      if (!numeroControl) numeroControl = `00-${numeroFactura}`;
+      if (!numeroControl) {
+        numeroControl = isReporteZ
+          ? (dto.serial_maquina || `Z-${numeroFactura}`)
+          : `00-${numeroFactura}`;
+      }
+      const docLabel = isReporteZ
+        ? `Reporte Z N° ${numeroFactura}${dto.serial_maquina ? ` · Máq. ${dto.serial_maquina}` : ''}`
+        : `Factura N° ${numeroFactura}`;
 
       const entryNumber = await this.journal.nextEntryNumber(tenantId, year, m);
       const generator = new AutomaticJournalGenerator();
@@ -104,17 +154,27 @@ export class SalesService {
         const dtoEntry = generator.generateSaleInvoiceEntry({
           tenantId, invoiceId: saleId, invoiceNumber: numeroFactura,
           controlNumber: numeroControl, date: dateStr,
-          customerRif: dto.rif_comprador, customerName: dto.nombre_comprador,
+          customerRif: rifComprador!, customerName: nombreComprador!,
           amountUsd: totalUsd, baseImponibleUsd: baseUsd, vatAmountUsd: ivaUsd,
           bcvExchangeRate: rate, isCredit: true,
         }, entryNumber);
         dtoEntry.sourceDocumentId = saleId;
+        if (dto.income_account_code) {
+          for (const l of dtoEntry.lines) {
+            if (l.accountCode === STANDARD_ACCOUNTS.VENTAS_GRAVADAS_16.code) {
+              l.accountCode = incomeAcc.code;
+              l.accountName = incomeAcc.name;
+            }
+          }
+        }
         const entry = await this.journal.persistDto(dtoEntry, userId, m);
         const sale = await m.getRepository(SalesBook).save(m.getRepository(SalesBook).create({
           sale_id: saleId, tenant_id: tenantId, fiscal_year: year, fiscal_period: period,
           numero_operacion: numeroOperacion, fecha_factura: dateStr,
-          rif_comprador: dto.rif_comprador, nombre_comprador: dto.nombre_comprador,
+          rif_comprador: rifComprador, nombre_comprador: nombreComprador,
           numero_factura: numeroFactura, numero_control: numeroControl,
+          tipo_documento: isReporteZ ? 'REPORTE_Z' : 'FACTURA',
+          serial_maquina: isReporteZ ? (dto.serial_maquina ?? null) : null,
           total_ventas_con_iva: totalVes, ventas_exentas: exentaVes,
           base_imponible_16: baseVes, debito_fiscal_16: ivaVes,
           iva_retenido_terceros: dto.iva_retenido_terceros ?? 0,
@@ -132,42 +192,42 @@ export class SalesService {
       lines = [
         {
           accountCode: cashAcc.code, accountName: cashAcc.name,
-          description: `${condicion === 'CONTADO' ? 'Cobro' : 'CxC'} Factura N° ${numeroFactura} - ${dto.nombre_comprador}`,
+          description: `${condicion === 'CONTADO' ? 'Cobro' : 'CxC'} ${docLabel} - ${nombreComprador}`,
           debitVes: totalVes, creditVes: 0, debitUsd: totalUsd, creditUsd: 0,
-          bcvRate: rate, thirdPartyRif: dto.rif_comprador,
+          bcvRate: rate, thirdPartyRif: rifComprador,
         },
         {
-          accountCode: STANDARD_ACCOUNTS.VENTAS_GRAVADAS_16.code,
-          accountName: STANDARD_ACCOUNTS.VENTAS_GRAVADAS_16.name,
-          description: `Venta según Factura N° ${numeroFactura}`,
+          accountCode: incomeAcc.code,
+          accountName: incomeAcc.name,
+          description: `Venta según ${docLabel}`,
           debitVes: 0, creditVes: baseVes, debitUsd: 0, creditUsd: baseUsd,
-          bcvRate: rate, thirdPartyRif: dto.rif_comprador,
+          bcvRate: rate, thirdPartyRif: rifComprador,
         },
       ];
       if (ivaVes > 0) {
         lines.push({
           accountCode: STANDARD_ACCOUNTS.DEBITO_FISCAL_IVA_16.code,
           accountName: STANDARD_ACCOUNTS.DEBITO_FISCAL_IVA_16.name,
-          description: `Débito Fiscal IVA 16% Factura N° ${numeroFactura}`,
+          description: `Débito Fiscal IVA 16% ${docLabel}`,
           debitVes: 0, creditVes: ivaVes, debitUsd: 0, creditUsd: ivaUsd,
-          bcvRate: rate, thirdPartyRif: dto.rif_comprador,
+          bcvRate: rate, thirdPartyRif: rifComprador,
         });
       }
       if (exentaVes > 0) {
         lines.push({
           accountCode: '4.1.01.01.02.000', accountName: 'Ventas de Mercancías Exentas',
-          description: `Venta exenta Factura N° ${numeroFactura}`,
+          description: `Venta exenta ${docLabel}`,
           debitVes: 0, creditVes: exentaVes, debitUsd: 0, creditUsd: exentaUsd,
-          bcvRate: rate, thirdPartyRif: dto.rif_comprador,
+          bcvRate: rate, thirdPartyRif: rifComprador,
         });
       }
       if (igtfVes > 0) {
         lines.push({
           accountCode: STANDARD_ACCOUNTS.IGTF_POR_PAGAR_ENTERAR_3.code,
           accountName: STANDARD_ACCOUNTS.IGTF_POR_PAGAR_ENTERAR_3.name,
-          description: `IGTF 3% percibido Factura N° ${numeroFactura}`,
+          description: `IGTF 3% percibido ${docLabel}`,
           debitVes: 0, creditVes: igtfVes, debitUsd: 0, creditUsd: igtfUsd,
-          bcvRate: rate, thirdPartyRif: dto.rif_comprador,
+          bcvRate: rate, thirdPartyRif: rifComprador,
         });
       }
       try {
@@ -179,7 +239,7 @@ export class SalesService {
       const dtoEntry: JournalEntryDto = {
         tenantId, fiscalYear: year, fiscalPeriod: period, entryNumber,
         entryDate: dateStr,
-        concept: `Factura de Venta N° ${numeroFactura} (${condicion}) a ${dto.nombre_comprador}`,
+        concept: `${docLabel} (${condicion}) a ${nombreComprador}`,
         sourceModule: 'VENTAS', sourceDocumentId: saleId, status: 'ASENTADO',
         bcvExchangeRate: rate, lines,
         totalDebitVes: totalVes, totalCreditVes: totalVes,
@@ -189,8 +249,10 @@ export class SalesService {
       const sale = await m.getRepository(SalesBook).save(m.getRepository(SalesBook).create({
         sale_id: saleId, tenant_id: tenantId, fiscal_year: year, fiscal_period: period,
         numero_operacion: numeroOperacion, fecha_factura: dateStr,
-        rif_comprador: dto.rif_comprador, nombre_comprador: dto.nombre_comprador,
+        rif_comprador: rifComprador, nombre_comprador: nombreComprador,
         numero_factura: numeroFactura, numero_control: numeroControl,
+        tipo_documento: isReporteZ ? 'REPORTE_Z' : 'FACTURA',
+        serial_maquina: isReporteZ ? (dto.serial_maquina ?? null) : null,
         total_ventas_con_iva: totalVes, ventas_exentas: exentaVes,
         base_imponible_16: baseVes, debito_fiscal_16: ivaVes,
         iva_retenido_terceros: dto.iva_retenido_terceros ?? 0,

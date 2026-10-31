@@ -9,9 +9,11 @@ import { JwtUserPayload } from '../../common/auth.guards';
 import { SalesService, CreateSaleDto } from './sales.service';
 
 class SaleDto implements CreateSaleDto {
+  @IsOptional() @IsIn(['FACTURA', 'REPORTE_Z']) tipo_documento?: 'FACTURA' | 'REPORTE_Z';
+  @IsOptional() @IsString() serial_maquina?: string;
   @IsOptional() @IsString() fecha_factura?: string;
-  @IsString() rif_comprador: string;
-  @IsString() nombre_comprador: string;
+  @IsOptional() @IsString() rif_comprador?: string;
+  @IsOptional() @IsString() nombre_comprador?: string;
   @IsOptional() @IsString() numero_factura?: string;
   @IsOptional() @IsString() numero_control?: string;
   @IsIn(['USD', 'VES']) amounts_in: 'USD' | 'VES';
@@ -21,6 +23,7 @@ class SaleDto implements CreateSaleDto {
   @IsOptional() @IsIn(['USD', 'VES']) cobro_en?: 'USD' | 'VES';
   @IsOptional() @IsNumber() @Min(0) igtf_percibido_3?: number;
   @IsOptional() @IsNumber() @Min(0) iva_retenido_terceros?: number;
+  @IsOptional() @IsString() income_account_code?: string;
   @IsNumber() bcv_exchange_rate: number;
 }
 
