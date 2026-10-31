@@ -63,9 +63,10 @@ npm run dev                      # levanta backend (3000) y frontend (5173) a la
 
 ## Despliegue en producción
 
-El backend sirve la API y el frontend compilado en un solo proceso (puerto 3000). Para montarlo en un VPS con dominio y HTTPS (nginx + Certbot + PM2), sigue la guía:
+El backend sirve la API y el frontend compilado en un solo proceso (puerto 3000). Para montarlo en un VPS con dominio y HTTPS (nginx + Certbot + PM2):
 
-➡️ [`docs/DEPLOY.md`](docs/DEPLOY.md) — incluye `scripts/setup-vps.sh` (bootstrap automático para Ubuntu).
+➡️ [`MANUAL.md`](MANUAL.md) — guía de instalación paso a paso para el administrador del servidor.
+📖 [`docs/DEPLOY.md`](docs/DEPLOY.md) — referencia técnica detallada.
 ✅ [`docs/VERIFICACION.md`](docs/VERIFICACION.md) — checklist de verificación post-despliegue + `scripts/verify-deploy.sh`.
 
 ## Funcionalidades
@@ -94,9 +95,4 @@ node scripts/seed-demo.mjs       # carga la empresa demo "Distribuidora El Roble
 ./scripts/reset-demo-banco.sh    # revierte la conciliación bancaria a PENDIENTE (para re-grabar demos)
 ```
 
-> `smoke-test.sh` crea empresas temporales de verificación ("Smoke Test CA"): usarlo sobre una base de datos de pruebas o antes de cargar la demo.
-
-Documentación auxiliar:
-
-- [`docs/CHECKLIST_PRUEBAS.md`](docs/CHECKLIST_PRUEBAS.md) — validación manual pantalla por pantalla.
-- [`docs/GUION_VIDEO.md`](docs/GUION_VIDEO.md) — guion de demostración comercial (~5 min) con narración literal.
+> `smoke-test.sh` crea empresas temporales de verificación ("Smoke Test CA"): usarlo sobre una base de datos de pruebas o en una instancia desechable (ver `docs/VERIFICACION.md` — nunca contra producción).
