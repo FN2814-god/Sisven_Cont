@@ -126,6 +126,8 @@ Para cada contador:
 
 Para probarlo: cierra sesión y entra con esas credenciales — debe ver solo su empresa y sus permisos.
 
+> 💡 **Atajo opcional**: si quieres que los usuarios ya existan desde el primer arranque, define en `backend/.env` la variable `SEED_USERS` con el formato `correo:clave:ROL:Nombre` separados por `;` — el sistema los crea solo. Luego solo falta asignarles la empresa (Paso 9, punto 4).
+
 ## Paso 10 — Verificación final
 
 Desde tu propia PC:

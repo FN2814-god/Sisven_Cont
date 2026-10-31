@@ -17,6 +17,43 @@ export class SeedService {
 
   async run(): Promise<void> {
     await this.seedAdminUser();
+    await this.seedExtraUsers();
+  }
+
+  /**
+   * Usuarios adicionales definidos en SEED_USERS (para demos/despliegues
+   * donde se quiere personal pre-creado). Formato por usuario, separados
+   * por ";":
+   *   SEED_USERS=correo@x.com:Clave1:CONTADOR:Nombre Uno;correo2@x.com:Clave2:CONSULTA:Nombre Dos
+   * Idempotente: omite correos que ya existen (corre en cada arranque).
+   */
+  private async seedExtraUsers(): Promise<void> {
+    const raw = process.env.SEED_USERS;
+    if (!raw?.trim()) return;
+
+    for (const item of raw.split(';').map((s) => s.trim()).filter(Boolean)) {
+      const [email, password, role, ...rest] = item.split(':');
+      if (!email || !password || !role) {
+        this.logger.warn(`SEED_USERS: entrada ignorada (formato inválido): ${item}`);
+        continue;
+      }
+      const normalizedRole = role.trim().toUpperCase();
+      if (!['ADMIN', 'CONTADOR', 'CONSULTA'].includes(normalizedRole)) {
+        this.logger.warn(`SEED_USERS: rol inválido '${role}' en: ${item}`);
+        continue;
+      }
+      const normalizedEmail = email.trim().toLowerCase();
+      if (await this.users.findOne({ where: { email: normalizedEmail } })) {
+        continue;
+      }
+      await this.users.save({
+        email: normalizedEmail,
+        password_hash: await bcrypt.hash(password.trim(), 10),
+        full_name: rest.join(':').trim() || normalizedEmail,
+        role: normalizedRole,
+      });
+      this.logger.log(`Usuario sembrado: ${normalizedEmail} (${normalizedRole})`);
+    }
   }
 
   /** Usuario administrador inicial (solo si la tabla está vacía) */
